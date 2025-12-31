@@ -1,5 +1,4 @@
 <script>
-  import { onMount, onDestroy } from 'svelte';
   import { open } from '@tauri-apps/plugin-dialog';
   import { listen } from '@tauri-apps/api/event';
   import {
@@ -16,75 +15,108 @@
     openInExplorer
   } from './lib/api/tauri';
 
-  let unlistenFileDrop = null;
-  let unlistenFileDropHover = null;
-  let unlistenFileDropCancelled = null;
-  let unlistenLockProgress = null;
-  let unlistenUnlockProgress = null;
-  let tickInterval = null;
+  // Cleanup functions for event listeners
+  let unlistenFileDrop = $state(null);
+  let unlistenFileDropHover = $state(null);
+  let unlistenFileDropCancelled = $state(null);
+  let unlistenLockProgress = $state(null);
+  let unlistenUnlockProgress = $state(null);
 
   // All state comes from backend
-  let lockedItems = [];
-  let vaults = [];
-  let tick = 0; // Used to force re-render of time displays
+  let lockedItems = $state([]);
+  let vaults = $state([]);
+  let tick = $state(0); // Used to force re-render of time displays
 
   // UI-only state (ephemeral)
-  let isDragging = false;
-  let showLockModal = false;
-  let showSettings = false;
-  let showMigrationModal = false;
-  let pendingFiles = [];
-  let pendingMigrationFiles = [];
-  let timeMode = 'for';
-  let forDuration = '';
-  let untilDate = '';
-  let untilTime = '';
-  let showTimePicker = false;
-  let selectedVault = null;
-  let message = null;
-  let isLoading = true;
-  let deleteOriginalFiles = false;
-  let deleteMigrationOriginals = false;
+  let isDragging = $state(false);
+  let showLockModal = $state(false);
+  let showSettings = $state(false);
+  let showMigrationModal = $state(false);
+  let pendingFiles = $state([]);
+  let pendingMigrationFiles = $state([]);
+  let timeMode = $state('for');
+  let forDuration = $state('');
+  let untilDate = $state('');
+  let untilTime = $state('');
+  let showTimePicker = $state(false);
+  let selectedVault = $state(null);
+  let message = $state(null);
+  let isLoading = $state(true);
+  let deleteOriginalFiles = $state(false);
+  let deleteMigrationOriginals = $state(false);
 
   // Progress state for lock operations
-  let isLocking = false;
-  let lockProgress = {
+  let isLocking = $state(false);
+  let lockProgress = $state({
     stage: 'compressing',
     progress: 0,
     currentFile: '',
     bytesProcessed: 0,
     totalBytes: 0
-  };
+  });
 
   // Progress state for unlock operations
-  let isUnlocking = false;
-  let unlockProgress = {
+  let isUnlocking = $state(false);
+  let unlockProgress = $state({
     stage: 'decrypting',
     progress: 0,
     currentFile: '',
     bytesProcessed: 0,
     totalBytes: 0
-  };
-  let unlockingItemId = null;
+  });
+  let unlockingItemId = $state(null);
 
   // Track newly unlocked items in this session - maps item ID to output path
   // Used as fallback before backend state is refreshed
-  let sessionUnlockedItems = {};
+  let sessionUnlockedItems = $state({});
 
   // Computed: sorted items (unlocked first, then by time remaining)
-  $: sortedItems = [...lockedItems].sort((a, b) => {
+  const sortedItems = $derived([...lockedItems].sort((a, b) => {
     // Ready items first
     if (a.isReady && !b.isReady) return -1;
     if (!a.isReady && b.isReady) return 1;
     // Then by unlock time (soonest first)
     return new Date(a.unlocks) - new Date(b.unlocks);
+  }));
+
+  // Setup effect - runs on mount
+  $effect(() => {
+    // Prevent default browser drag/drop behavior
+    const preventDragOver = (e) => e.preventDefault();
+    const preventDrop = (e) => e.preventDefault();
+    document.addEventListener('dragover', preventDragOver);
+    document.addEventListener('drop', preventDrop);
+
+    // Initialize async listeners and state
+    initializeApp();
+
+    // Cleanup on unmount
+    return () => {
+      document.removeEventListener('dragover', preventDragOver);
+      document.removeEventListener('drop', preventDrop);
+      if (unlistenFileDrop) unlistenFileDrop();
+      if (unlistenFileDropHover) unlistenFileDropHover();
+      if (unlistenFileDropCancelled) unlistenFileDropCancelled();
+      if (unlistenLockProgress) unlistenLockProgress();
+      if (unlistenUnlockProgress) unlistenUnlockProgress();
+    };
   });
 
-  onMount(async () => {
-    // Prevent default browser drag/drop behavior
-    document.addEventListener('dragover', (e) => e.preventDefault());
-    document.addEventListener('drop', (e) => e.preventDefault());
+  // Tick interval effect for countdown updates
+  $effect(() => {
+    const tickInterval = setInterval(() => {
+      tick++;
+      // Also refresh isReady status
+      lockedItems = lockedItems.map(item => ({
+        ...item,
+        isReady: new Date(item.unlocks) <= new Date()
+      }));
+    }, 1000);
 
+    return () => clearInterval(tickInterval);
+  });
+
+  async function initializeApp() {
     // Listen for lock progress events from backend
     unlistenLockProgress = await onLockProgress((event) => {
       lockProgress = {
@@ -127,26 +159,7 @@
     // Load all state from backend
     await refreshState();
     isLoading = false;
-
-    // Start tick interval for real-time countdown updates
-    tickInterval = setInterval(() => {
-      tick++;
-      // Also refresh isReady status
-      lockedItems = lockedItems.map(item => ({
-        ...item,
-        isReady: new Date(item.unlocks) <= new Date()
-      }));
-    }, 1000);
-  });
-
-  onDestroy(() => {
-    if (unlistenFileDrop) unlistenFileDrop();
-    if (unlistenFileDropHover) unlistenFileDropHover();
-    if (unlistenFileDropCancelled) unlistenFileDropCancelled();
-    if (unlistenLockProgress) unlistenLockProgress();
-    if (unlistenUnlockProgress) unlistenUnlockProgress();
-    if (tickInterval) clearInterval(tickInterval);
-  });
+  }
 
   // Handle dropped files - detect legacy .key.md files for migration
   function handleDroppedFiles(paths) {
@@ -340,8 +353,7 @@
 
       if (result.success) {
         // Track the unlocked item in session (backend will pick it up on next refresh)
-        sessionUnlockedItems[item.id] = result.outputPath;
-        sessionUnlockedItems = sessionUnlockedItems; // Trigger reactivity
+        sessionUnlockedItems = { ...sessionUnlockedItems, [item.id]: result.outputPath };
 
         showMessage('success', 'Unlocked successfully! Opening folder...');
         await refreshState();
@@ -509,6 +521,18 @@
   function getFileName(path) {
     return path?.split(/[\\/]/).pop() || 'Unknown';
   }
+
+  function handleModalOverlayClick(closeFunction) {
+    if (!isLocking) {
+      closeFunction();
+    }
+  }
+
+  function handleModalKeydown(event, closeFunction) {
+    if (event.key === 'Escape' && !isLocking) {
+      closeFunction();
+    }
+  }
 </script>
 
 <main class="h-screen flex flex-col p-4">
@@ -517,7 +541,7 @@
     <h1 class="text-sm font-medium text-white/80 flex items-center gap-2">
       <span class="text-base">🔐</span> Time Locker
     </h1>
-    <button class="icon-btn" on:click={() => showSettings = true} title="Settings">
+    <button class="icon-btn" onclick={() => showSettings = true} title="Settings">
       <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"/>
         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/>
@@ -537,11 +561,11 @@
     role="button"
     tabindex="0"
     class="drop-zone mb-4 {isDragging ? 'dragging' : ''}"
-    on:dragenter={() => isDragging = true}
-    on:dragleave={() => isDragging = false}
-    on:drop={handleDrop}
-    on:click={handleFileSelect}
-    on:keypress={(e) => e.key === 'Enter' && handleFileSelect()}
+    ondragenter={() => isDragging = true}
+    ondragleave={() => isDragging = false}
+    ondrop={handleDrop}
+    onclick={handleFileSelect}
+    onkeypress={(e) => e.key === 'Enter' && handleFileSelect()}
   >
     <div class="text-2xl mb-2 opacity-70">📁</div>
     <p class="text-white/60 text-xs">Drop files to lock</p>
@@ -570,8 +594,8 @@
           {@const isItemUnlocked = !!(item.unlockedPath || sessionUnlockedItems[item.id])}
           <div
             class="file-row {item.isReady ? 'ready' : ''} {isItemUnlocked ? 'unlocked-item' : ''}"
-            on:click={() => handleUnlock(item)}
-            on:keypress={(e) => e.key === 'Enter' && handleUnlock(item)}
+            onclick={() => handleUnlock(item)}
+            onkeypress={(e) => e.key === 'Enter' && handleUnlock(item)}
             role="button"
             tabindex="0"
           >
@@ -644,7 +668,15 @@
 
 <!-- Lock Modal -->
 {#if showLockModal}
-  <div class="modal-overlay" role="dialog" aria-modal="true" on:click|self={!isLocking ? closeLockModal : null} on:keydown={(e) => e.key === 'Escape' && !isLocking && closeLockModal()}>
+  <div
+    class="modal-overlay"
+    role="dialog"
+    aria-modal="true"
+    aria-labelledby="lock-modal-title"
+    tabindex="-1"
+    onclick={(e) => e.target === e.currentTarget && handleModalOverlayClick(closeLockModal)}
+    onkeydown={(e) => handleModalKeydown(e, closeLockModal)}
+  >
     <div class="modal-content">
       {#if isLocking}
         <!-- Progress View -->
@@ -681,8 +713,8 @@
       {:else}
         <!-- Normal Lock Form -->
         <div class="flex items-center justify-between mb-4">
-          <h2 class="text-sm font-medium text-white/90">Lock {pendingFiles.length} file{pendingFiles.length > 1 ? 's' : ''}</h2>
-          <button class="icon-btn" on:click={closeLockModal}>
+          <h2 id="lock-modal-title" class="text-sm font-medium text-white/90">Lock {pendingFiles.length} file{pendingFiles.length > 1 ? 's' : ''}</h2>
+          <button class="icon-btn" onclick={closeLockModal} aria-label="Close">
             <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
             </svg>
@@ -691,10 +723,10 @@
 
         <!-- Time Mode Toggle -->
         <div class="flex gap-1 mb-4 p-1 bg-white/[0.03] rounded-lg">
-          <button class="tab-btn flex-1 {timeMode === 'for' ? 'active' : ''}" on:click={() => timeMode = 'for'}>
+          <button class="tab-btn flex-1 {timeMode === 'for' ? 'active' : ''}" onclick={() => timeMode = 'for'}>
             For
           </button>
-          <button class="tab-btn flex-1 {timeMode === 'until' ? 'active' : ''}" on:click={() => timeMode = 'until'}>
+          <button class="tab-btn flex-1 {timeMode === 'until' ? 'active' : ''}" onclick={() => timeMode = 'until'}>
             Until
           </button>
         </div>
@@ -710,13 +742,13 @@
             />
           </div>
           <div class="flex flex-wrap gap-1.5 mb-4">
-            <button class="hint-chip" on:click={() => setQuickDuration('30s')}>30s</button>
-            <button class="hint-chip" on:click={() => setQuickDuration('5m')}>5m</button>
-            <button class="hint-chip" on:click={() => setQuickDuration('1h')}>1h</button>
-            <button class="hint-chip" on:click={() => setQuickDuration('1d')}>1d</button>
-            <button class="hint-chip" on:click={() => setQuickDuration('7d')}>7d</button>
-            <button class="hint-chip" on:click={() => setQuickDuration('30d')}>30d</button>
-            <button class="hint-chip" on:click={() => setQuickDuration('1y')}>1y</button>
+            <button class="hint-chip" onclick={() => setQuickDuration('30s')}>30s</button>
+            <button class="hint-chip" onclick={() => setQuickDuration('5m')}>5m</button>
+            <button class="hint-chip" onclick={() => setQuickDuration('1h')}>1h</button>
+            <button class="hint-chip" onclick={() => setQuickDuration('1d')}>1d</button>
+            <button class="hint-chip" onclick={() => setQuickDuration('7d')}>7d</button>
+            <button class="hint-chip" onclick={() => setQuickDuration('30d')}>30d</button>
+            <button class="hint-chip" onclick={() => setQuickDuration('1y')}>1y</button>
           </div>
         {:else}
           <!-- Date Picker -->
@@ -729,7 +761,7 @@
               />
               <button
                 class="icon-btn {showTimePicker ? 'bg-white/[0.08]' : ''}"
-                on:click={() => showTimePicker = !showTimePicker}
+                onclick={() => showTimePicker = !showTimePicker}
                 title="Set time"
               >
                 <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -777,7 +809,7 @@
           {/if}
         </div>
 
-        <button class="glass-button primary w-full" on:click={handleLock}>
+        <button class="glass-button primary w-full" onclick={handleLock}>
           Lock
         </button>
       {/if}
@@ -787,11 +819,19 @@
 
 <!-- Settings Modal -->
 {#if showSettings}
-  <div class="modal-overlay" role="dialog" aria-modal="true" on:click|self={() => showSettings = false} on:keydown={(e) => e.key === 'Escape' && (showSettings = false)}>
+  <div
+    class="modal-overlay"
+    role="dialog"
+    aria-modal="true"
+    aria-labelledby="settings-modal-title"
+    tabindex="-1"
+    onclick={(e) => e.target === e.currentTarget && (showSettings = false)}
+    onkeydown={(e) => e.key === 'Escape' && (showSettings = false)}
+  >
     <div class="modal-content">
       <div class="flex items-center justify-between mb-4">
-        <h2 class="text-sm font-medium text-white/90">Settings</h2>
-        <button class="icon-btn" on:click={() => showSettings = false}>
+        <h2 id="settings-modal-title" class="text-sm font-medium text-white/90">Settings</h2>
+        <button class="icon-btn" onclick={() => showSettings = false} aria-label="Close">
           <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
           </svg>
@@ -808,7 +848,7 @@
           {#each vaults as vault, i}
             <div class="flex items-center gap-2 px-2 py-1.5 bg-white/[0.03] rounded-lg">
               <span class="text-xs text-white/60 truncate flex-1">{getFileName(vault)}</span>
-              <button class="icon-btn" on:click={() => removeVault(i)}>
+              <button class="icon-btn" onclick={() => removeVault(i)} aria-label="Remove vault">
                 <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
                 </svg>
@@ -818,7 +858,7 @@
         {/if}
       </div>
 
-      <button class="glass-button w-full" on:click={addVault}>
+      <button class="glass-button w-full" onclick={addVault}>
         + Add Vault
       </button>
     </div>
@@ -827,11 +867,19 @@
 
 <!-- Migration Modal -->
 {#if showMigrationModal}
-  <div class="modal-overlay" role="dialog" aria-modal="true" on:click|self={closeMigrationModal} on:keydown={(e) => e.key === 'Escape' && closeMigrationModal()}>
+  <div
+    class="modal-overlay"
+    role="dialog"
+    aria-modal="true"
+    aria-labelledby="migration-modal-title"
+    tabindex="-1"
+    onclick={(e) => e.target === e.currentTarget && closeMigrationModal()}
+    onkeydown={(e) => e.key === 'Escape' && closeMigrationModal()}
+  >
     <div class="modal-content">
       <div class="flex items-center justify-between mb-4">
-        <h2 class="text-sm font-medium text-white/90">Migrate Legacy Files</h2>
-        <button class="icon-btn" on:click={closeMigrationModal}>
+        <h2 id="migration-modal-title" class="text-sm font-medium text-white/90">Migrate Legacy Files</h2>
+        <button class="icon-btn" onclick={closeMigrationModal} aria-label="Close">
           <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
           </svg>
@@ -873,10 +921,10 @@
       </div>
 
       <div class="flex gap-2">
-        <button class="glass-button flex-1" on:click={closeMigrationModal}>
+        <button class="glass-button flex-1" onclick={closeMigrationModal}>
           Cancel
         </button>
-        <button class="glass-button primary flex-1" on:click={handleMigration}>
+        <button class="glass-button primary flex-1" onclick={handleMigration}>
           Migrate
         </button>
       </div>

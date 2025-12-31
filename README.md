@@ -82,8 +82,8 @@ timelocker migrate ./vault/old-file.key.md --delete-old
 
 ## Tech Stack
 
-- **Frontend**: Svelte + Vite + Tailwind CSS
-- **Desktop**: Tauri (Rust)
+- **Frontend**: Svelte 5 + Vite 6 + Tailwind CSS
+- **Desktop**: Tauri 2 (Rust)
 - **Encryption**: tlock_age + AES-256-GCM + 7z archives
 - **Time Source**: drand Quicknet beacon
 

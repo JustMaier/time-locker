@@ -1,9 +1,11 @@
 <script lang="ts">
-  import { createEventDispatcher } from 'svelte';
+  interface Props {
+    onFilesDropped?: (data: { files: File[] }) => void;
+  }
 
-  const dispatch = createEventDispatcher();
-  let isDragging = false;
-  let files: FileList | null = null;
+  let { onFilesDropped }: Props = $props();
+
+  let isDragging = $state(false);
 
   function handleDragOver(e: DragEvent) {
     e.preventDefault();
@@ -33,14 +35,14 @@
     }
 
     if (droppedFiles.length > 0) {
-      dispatch('filesDropped', { files: droppedFiles });
+      onFilesDropped?.({ files: droppedFiles });
     }
   }
 
   function handleFileInput(e: Event) {
     const target = e.target as HTMLInputElement;
     if (target.files && target.files.length > 0) {
-      dispatch('filesDropped', { files: Array.from(target.files) });
+      onFilesDropped?.({ files: Array.from(target.files) });
     }
   }
 </script>
@@ -48,9 +50,9 @@
 <div
   class="drop-zone"
   class:dragging={isDragging}
-  on:dragover={handleDragOver}
-  on:dragleave={handleDragLeave}
-  on:drop={handleDrop}
+  ondragover={handleDragOver}
+  ondragleave={handleDragLeave}
+  ondrop={handleDrop}
   role="button"
   tabindex="0"
 >
@@ -76,7 +78,7 @@
     <input
       type="file"
       multiple
-      on:change={handleFileInput}
+      onchange={handleFileInput}
       class="file-input"
       aria-label="Select files to lock"
     />

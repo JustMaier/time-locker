@@ -1,9 +1,10 @@
 <script lang="ts">
-  import { createEventDispatcher } from 'svelte';
+  interface Props {
+    value?: number;
+    onChange?: (data: { unlockAt: number }) => void;
+  }
 
-  const dispatch = createEventDispatcher();
-
-  export let value: number = 0;
+  let { value = $bindable(0), onChange }: Props = $props();
 
   const quickDurations = [
     { label: '5 min', value: 5 * 60 * 1000 },
@@ -14,19 +15,19 @@
     { label: '1 month', value: 30 * 24 * 60 * 60 * 1000 },
   ];
 
-  let customDate = '';
-  let customTime = '';
+  let customDate = $state('');
+  let customTime = $state('');
 
   function selectQuickDuration(duration: number) {
     value = Date.now() + duration;
-    dispatch('change', { unlockAt: value });
+    onChange?.({ unlockAt: value });
   }
 
   function handleCustomDateTime() {
     if (customDate && customTime) {
       const dateTime = new Date(`${customDate}T${customTime}`);
       value = dateTime.getTime();
-      dispatch('change', { unlockAt: value });
+      onChange?.({ unlockAt: value });
     }
   }
 </script>
@@ -38,7 +39,7 @@
     {#each quickDurations as duration}
       <button
         class="quick-btn"
-        on:click={() => selectQuickDuration(duration.value)}
+        onclick={() => selectQuickDuration(duration.value)}
       >
         {duration.label}
       </button>
@@ -55,14 +56,14 @@
       <input
         type="date"
         bind:value={customDate}
-        on:change={handleCustomDateTime}
+        onchange={handleCustomDateTime}
         class="datetime-input"
         min={new Date().toISOString().split('T')[0]}
       />
       <input
         type="time"
         bind:value={customTime}
-        on:change={handleCustomDateTime}
+        onchange={handleCustomDateTime}
         class="datetime-input"
       />
     </div>

@@ -1,5 +1,9 @@
 <script lang="ts">
-  export let title = 'Time Locker';
+  interface Props {
+    title?: string;
+  }
+
+  let { title = 'Time Locker' }: Props = $props();
 </script>
 
 <header class="app-header">

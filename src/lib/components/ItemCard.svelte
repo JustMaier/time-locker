@@ -1,14 +1,16 @@
 <script lang="ts">
-  import { onMount, onDestroy } from 'svelte';
   import type { LockedItem } from '../stores/vault';
 
-  export let item: LockedItem;
-  export let onUnlock: (id: string) => void;
+  interface Props {
+    item: LockedItem;
+    onUnlock: (id: string) => void;
+  }
 
-  let timeRemaining = '';
-  let progress = 0;
-  let isUnlockable = false;
-  let interval: number;
+  let { item, onUnlock }: Props = $props();
+
+  let timeRemaining = $state('');
+  let progress = $state(0);
+  let isUnlockable = $state(false);
 
   function updateCountdown() {
     const now = Date.now();
@@ -29,7 +31,7 @@
     const minutes = Math.floor((remaining % (1000 * 60 * 60)) / (1000 * 60));
     const seconds = Math.floor((remaining % (1000 * 60)) / 1000);
 
-    const parts = [];
+    const parts: string[] = [];
     if (days > 0) parts.push(`${days}d`);
     if (hours > 0) parts.push(`${hours}h`);
     if (minutes > 0) parts.push(`${minutes}m`);
@@ -38,13 +40,14 @@
     timeRemaining = parts.join(' ');
   }
 
-  onMount(() => {
+  // Effect to handle countdown updates
+  $effect(() => {
     updateCountdown();
-    interval = window.setInterval(updateCountdown, 1000);
-  });
+    const interval = window.setInterval(updateCountdown, 1000);
 
-  onDestroy(() => {
-    if (interval) clearInterval(interval);
+    return () => {
+      clearInterval(interval);
+    };
   });
 
   function getFileIcon(type: string) {
@@ -70,7 +73,7 @@
       {timeRemaining}
     </div>
     {#if isUnlockable}
-      <button class="unlock-btn" on:click={() => onUnlock(item.id)}>
+      <button class="unlock-btn" onclick={() => onUnlock(item.id)}>
         🔓 Unlock
       </button>
     {/if}

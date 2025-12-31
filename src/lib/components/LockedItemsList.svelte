@@ -15,7 +15,8 @@
     }
   }
 
-  $: sortedItems = [...$lockedItems].sort((a, b) => a.unlockAt - b.unlockAt);
+  // Using $derived to sort items reactively
+  const sortedItems = $derived([...$lockedItems].sort((a, b) => a.unlockAt - b.unlockAt));
 </script>
 
 <div class="items-list">
