@@ -246,6 +246,10 @@ async function main() {
     updateCargoTomlVersion(newVersion);
     console.log(`Updated Cargo.toml to version ${newVersion}`);
 
+    // Update Cargo.lock to reflect the new version
+    console.log('Updating Cargo.lock...');
+    execSync('cargo update --workspace', { cwd: path.join(ROOT_DIR, 'src-tauri'), stdio: 'inherit' });
+
     console.log('\n--- Committing version bump ---');
 
     // Stage and commit version files
