@@ -249,7 +249,7 @@ async function main() {
     console.log('\n--- Committing version bump ---');
 
     // Stage and commit version files
-    git('add package.json src-tauri/tauri.conf.json src-tauri/Cargo.toml');
+    git('add package.json src-tauri/tauri.conf.json src-tauri/Cargo.toml src-tauri/Cargo.lock');
     git(`commit -m "chore: bump version to ${newVersion}"`);
 
     // Create tag
