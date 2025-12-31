@@ -3680,6 +3680,7 @@ dependencies = [
 [[package]]
 name = "sevenz-rust2"
 version = "0.20.0"
+source = "git+https://github.com/JustMaier/sevenz-rust2.git#e1edba2aa3dd05f4d35dc2d606ca1b07017a31e5"
 dependencies = [
  "aes",
  "bzip2",
