@@ -54,7 +54,8 @@ function getVersion() {
 function getExecutableInfo(target) {
     const isWindows = target ? target.includes('windows') : process.platform === 'win32';
     const ext = isWindows ? '.exe' : '';
-    const originalName = `time-locker${ext}`;
+    // Tauri uses productName from tauri.conf.json for the executable name
+    const originalName = `Time Locker${ext}`;
     const versionedPrefix = 'TimeLocker';
 
     return { isWindows, ext, originalName, versionedPrefix };
