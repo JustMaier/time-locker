@@ -238,7 +238,7 @@ async function main() {
 
     // Update version in tauri.conf.json
     const config = readTauriConfig();
-    config.package.version = newVersion;
+    config.version = newVersion;
     writeTauriConfig(config);
     console.log(`Updated tauri.conf.json to version ${newVersion}`);
 
