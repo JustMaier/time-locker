@@ -1,6 +1,6 @@
 <script>
   import { onMount, onDestroy } from 'svelte';
-  import { open } from '@tauri-apps/api/dialog';
+  import { open } from '@tauri-apps/plugin-dialog';
   import { listen } from '@tauri-apps/api/event';
   import {
     lockItem,
@@ -88,8 +88,8 @@
     // Listen for lock progress events from backend
     unlistenLockProgress = await onLockProgress((event) => {
       lockProgress = {
-        stage: event.stage,
-        progress: event.progress,
+        stage: event.stage || 'compressing',
+        progress: event.progress ?? 0,
         currentFile: event.currentFile || '',
         bytesProcessed: event.bytesProcessed || 0,
         totalBytes: event.totalBytes || 0
@@ -99,28 +99,28 @@
     // Listen for unlock progress events from backend
     unlistenUnlockProgress = await onUnlockProgress((event) => {
       unlockProgress = {
-        stage: event.stage,
-        progress: event.progress,
+        stage: event.stage || 'decrypting',
+        progress: event.progress ?? 0,
         currentFile: event.currentFile || '',
         bytesProcessed: event.bytesProcessed || 0,
         totalBytes: event.totalBytes || 0
       };
     });
 
-    // Listen for Tauri file drop events
-    unlistenFileDrop = await listen('tauri://file-drop', (event) => {
-      const paths = event.payload;
+    // Listen for Tauri drag-drop events (v2 event names)
+    unlistenFileDrop = await listen('tauri://drag-drop', (event) => {
+      const paths = event.payload?.paths || event.payload;
       if (paths && paths.length > 0) {
         handleDroppedFiles(paths);
         isDragging = false;
       }
     });
 
-    unlistenFileDropHover = await listen('tauri://file-drop-hover', () => {
+    unlistenFileDropHover = await listen('tauri://drag-over', () => {
       isDragging = true;
     });
 
-    unlistenFileDropCancelled = await listen('tauri://file-drop-cancelled', () => {
+    unlistenFileDropCancelled = await listen('tauri://drag-leave', () => {
       isDragging = false;
     });
 

@@ -7,14 +7,17 @@ use serde::{Deserialize, Serialize};
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::Arc;
 use std::time::{Duration, Instant};
-use tauri::Window;
+use tauri::{Emitter, Manager, WebviewWindow};
 
 /// Progress update payload sent to the frontend
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct ProgressPayload {
     /// Percentage complete (0-100), None if total is unknown
+    #[serde(rename = "progress")]
     pub percentage: Option<f64>,
     /// Number of bytes processed so far
+    #[serde(rename = "bytesProcessed")]
     pub bytes_written: u64,
     /// Total bytes to process, None if unknown
     pub total_bytes: Option<u64>,
@@ -27,6 +30,7 @@ pub struct ProgressPayload {
     /// Total number of files, None if unknown
     pub total_files: Option<u32>,
     /// Current operation phase
+    #[serde(rename = "stage")]
     pub phase: ProgressPhase,
 }
 
@@ -109,6 +113,11 @@ impl ProgressTracker {
     /// Set the total bytes written (for when we know exact amount)
     pub fn set_bytes_written(&self, bytes: u64) {
         self.bytes_written.store(bytes, Ordering::SeqCst);
+    }
+
+    /// Get the current bytes written count
+    pub fn get_bytes_written(&self) -> u64 {
+        self.bytes_written.load(Ordering::SeqCst)
     }
 
     /// Increment the file counter
@@ -213,14 +222,14 @@ impl Default for ProgressTracker {
 
 /// Progress emitter that sends events to the Tauri frontend
 pub struct ProgressEmitter {
-    window: Window,
+    window: WebviewWindow,
     tracker: Arc<ProgressTracker>,
     event_name: String,
 }
 
 impl ProgressEmitter {
     /// Create a new progress emitter
-    pub fn new(window: Window, tracker: Arc<ProgressTracker>, event_name: impl Into<String>) -> Self {
+    pub fn new(window: WebviewWindow, tracker: Arc<ProgressTracker>, event_name: impl Into<String>) -> Self {
         Self {
             window,
             tracker,
@@ -239,22 +248,16 @@ impl ProgressEmitter {
     /// Emit progress regardless of throttle
     pub fn emit_progress_forced(&self, current_file: Option<String>, phase: ProgressPhase) -> bool {
         let payload = self.tracker.build_payload(current_file, phase);
-        match self.window.emit(&self.event_name, &payload) {
-            Ok(_) => true,
-            Err(e) => {
-                eprintln!("[ProgressEmitter] Failed to emit event: {}", e);
-                false
-            }
-        }
+        // Use app_handle().emit() for global events that frontend can listen to
+        self.window.app_handle().emit(&self.event_name, &payload).is_ok()
     }
 
     /// Emit a completion event
     pub fn emit_complete(&self) {
         self.tracker.force_next_emit();
         let payload = self.tracker.build_payload(None, ProgressPhase::Complete);
-        if let Err(e) = self.window.emit(&self.event_name, &payload) {
-            eprintln!("[ProgressEmitter] Failed to emit completion event: {}", e);
-        }
+        // Use app_handle().emit() for global events
+        let _ = self.window.app_handle().emit(&self.event_name, &payload);
     }
 
     /// Check if operation was cancelled

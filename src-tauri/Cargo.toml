@@ -12,11 +12,13 @@ name = "time_locker_lib"
 crate-type = ["lib"]  # Only need lib for desktop
 
 [build-dependencies]
-tauri-build = { version = "1.5", features = [] }
+tauri-build = { version = "2.0", features = [] }
 
 [dependencies]
-# Tauri framework - minimal features needed
-tauri = { version = "1.5", features = [ "shell-open", "dialog-open"] }
+# Tauri framework
+tauri = { version = "2.0", features = [] }
+tauri-plugin-dialog = "2"
+tauri-plugin-shell = "2"
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
 

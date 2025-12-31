@@ -1,5 +1,5 @@
-import { invoke } from '@tauri-apps/api/tauri';
-import { listen, UnlistenFn } from '@tauri-apps/api/event';
+import { invoke } from '@tauri-apps/api/core';
+import { listen, type UnlistenFn } from '@tauri-apps/api/event';
 
 // Types for the new .7z.tlock format
 export interface TlockMetadata {
@@ -124,7 +124,7 @@ export async function lockItem(
   options?: LockOptions
 ): Promise<LockResult> {
   try {
-    const result = await invoke<any>('lock_item', {
+    const result = await invoke<any>('lock_item_with_progress', {
       filePath: path,
       unlockTime,
       vault: vault || null,

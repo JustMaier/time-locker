@@ -15,12 +15,14 @@
     "release:major": "node scripts/release.js major"
   },
   "dependencies": {
-    "svelte": "^4.2.8"
+    "svelte": "^4.2.8",
+    "@tauri-apps/api": "^2.0.0",
+    "@tauri-apps/plugin-dialog": "^2.0.0",
+    "@tauri-apps/plugin-shell": "^2.0.0"
   },
   "devDependencies": {
     "@sveltejs/vite-plugin-svelte": "^3.0.1",
-    "@tauri-apps/api": "^1.5.3",
-    "@tauri-apps/cli": "^1.5.9",
+    "@tauri-apps/cli": "^2.0.0",
     "autoprefixer": "^10.4.16",
     "png-to-ico": "^3.0.1",
     "postcss": "^8.4.33",

@@ -1,12 +1,12 @@
 use crate::error::{Result, TimeLockerError};
 use crate::progress::{ProgressEmitter, ProgressPhase, ProgressTracker};
 use sevenz_rust2::encoder_options::{AesEncoderOptions, Lzma2Options};
-use sevenz_rust2::{decompress_with_password, ArchiveEntry, ArchiveWriter, Password};
-use std::fs::{create_dir_all, File};
-use std::io::BufReader;
+use sevenz_rust2::{decompress_with_extract_fn_and_password, decompress_with_password, ArchiveEntry, ArchiveWriter, Password};
+use std::fs::{create_dir_all, File, FileTimes};
+use std::io::{BufReader, BufWriter, Read, Write};
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
-use tauri::Window;
+use tauri::WebviewWindow;
 use walkdir::WalkDir;
 
 /// Create a password-protected 7z archive with encrypted headers (filenames hidden)
@@ -37,9 +37,16 @@ pub fn create_encrypted_archive(source_path: &Path, password: &str) -> Result<Pa
     writer.set_encrypt_header(true);
 
     // Configure compression pipeline: AES encryption + LZMA2
+    // Use level 1 in debug (fast), level 6 in release (better compression)
+    // Multi-threaded for faster compression of large files
+    #[cfg(debug_assertions)]
+    let lzma2_opts = Lzma2Options::from_level_mt(1, 4, 1 << 20); // level 1, 4 threads, 1MB chunks
+    #[cfg(not(debug_assertions))]
+    let lzma2_opts = Lzma2Options::from_level_mt(6, 4, 1 << 20); // level 6, 4 threads, 1MB chunks
+
     writer.set_content_methods(vec![
         AesEncoderOptions::new(password.into()).into(),
-        Lzma2Options::from_level(6).into(),
+        lzma2_opts.into(),
     ]);
 
     // Add source to archive
@@ -70,7 +77,7 @@ pub fn create_encrypted_archive(source_path: &Path, password: &str) -> Result<Pa
 pub fn create_encrypted_archive_with_progress(
     source_path: &Path,
     password: &str,
-    window: Window,
+    window: WebviewWindow,
     tracker: Option<Arc<ProgressTracker>>,
 ) -> Result<PathBuf> {
     if !source_path.exists() {
@@ -122,9 +129,16 @@ pub fn create_encrypted_archive_with_progress(
     writer.set_encrypt_header(true);
 
     // Configure compression pipeline: AES encryption + LZMA2
+    // Use level 1 in debug (fast), level 6 in release (better compression)
+    // Multi-threaded for faster compression of large files
+    #[cfg(debug_assertions)]
+    let lzma2_opts = Lzma2Options::from_level_mt(1, 4, 1 << 20); // level 1, 4 threads, 1MB chunks
+    #[cfg(not(debug_assertions))]
+    let lzma2_opts = Lzma2Options::from_level_mt(6, 4, 1 << 20); // level 6, 4 threads, 1MB chunks
+
     writer.set_content_methods(vec![
         AesEncoderOptions::new(password.into()).into(),
-        Lzma2Options::from_level(6).into(), // Level 6 is a good balance
+        lzma2_opts.into(),
     ]);
 
     // Add files to the archive
@@ -213,31 +227,49 @@ fn add_file_to_archive<W: std::io::Write + std::io::Seek>(
         .to_string_lossy()
         .to_string();
 
-    // Emit progress for this file
-    emitter.emit_progress(Some(file_name.clone()), ProgressPhase::Compressing);
-
-    // Get file size for progress tracking
-    let file_size = std::fs::metadata(file_path)
-        .map(|m| m.len())
-        .unwrap_or(0);
-
     // Create archive entry
     let entry = ArchiveEntry::from_path(file_path, relative_path);
 
     // Open file and add to archive
     let file = File::open(file_path)?;
+    let file_size = file.metadata().map(|m| m.len()).unwrap_or(0);
     let reader = BufReader::new(file);
 
+    // Emit initial progress for this file
+    emitter.emit_progress_forced(Some(file_name.clone()), ProgressPhase::Compressing);
+    eprintln!("[add_file_to_archive] Compressing: {}", file_name);
+
+    // Clone file_name for the closure
+    let file_name_for_closure = file_name.clone();
+
+    // Get current bytes as base (bytes completed from previous files)
+    // We'll use add_bytes for this file's progress
+    let bytes_before_this_file = tracker.get_bytes_written();
+
+    // Run compression with output-based progress callback
+    // The callback receives total compressed bytes written so far
     writer
-        .push_archive_entry(entry, Some(reader))
+        .push_archive_entry_with_progress(entry, Some(reader), Some(|compressed_bytes_written: usize| {
+            // Use compressed bytes directly as progress indicator
+            // This ensures progress keeps moving during finalization
+            // Cap at file_size so we don't exceed 100% for this file
+            let progress_bytes = (compressed_bytes_written as u64).min(file_size);
+
+            // Update tracker with cumulative bytes (previous files + current file's progress)
+            tracker.set_bytes_written(bytes_before_this_file + progress_bytes);
+            // Emit progress (throttled)
+            emitter.emit_progress(Some(file_name_for_closure.clone()), ProgressPhase::Compressing);
+        }))
         .map_err(|e| TimeLockerError::Archive(format!("Failed to add file '{}': {}", file_name, e)))?;
 
-    // Update progress
-    tracker.add_bytes(file_size);
+    // Mark this file as fully complete (use actual file size, not estimate)
+    tracker.set_bytes_written(bytes_before_this_file + file_size);
+
+    // Increment file counter after completion
     tracker.increment_files();
 
-    // Force emit after each file for better feedback on large files
-    emitter.emit_progress(Some(file_name), ProgressPhase::Compressing);
+    // Force emit completion for this file
+    emitter.emit_progress_forced(Some(file_name), ProgressPhase::Compressing);
 
     Ok(())
 }
@@ -254,7 +286,7 @@ pub fn extract_encrypted_archive_with_progress(
     archive_path: &Path,
     password: &str,
     dest: &Path,
-    window: Window,
+    window: WebviewWindow,
     tracker: Option<Arc<ProgressTracker>>,
 ) -> Result<()> {
     eprintln!(
@@ -293,10 +325,68 @@ pub fn extract_encrypted_archive_with_progress(
     let file = File::open(archive_path)?;
     let reader = BufReader::new(file);
 
-    // Extract using the helper function with password
-    // Note: sevenz_rust2's decompress doesn't support progress callbacks,
-    // so we emit progress at start and end only
-    decompress_with_password(reader, dest, Password::from(password)).map_err(|e| {
+    // Extract using custom callback with progress tracking
+    decompress_with_extract_fn_and_password(
+        reader,
+        dest,
+        Password::from(password),
+        |entry: &ArchiveEntry, reader: &mut dyn Read, dest_path: &PathBuf| {
+            // Check for cancellation
+            if tracker.is_cancelled() {
+                return Err(std::io::Error::new(std::io::ErrorKind::Interrupted, "Operation cancelled").into());
+            }
+
+            if entry.is_directory() {
+                if !dest_path.exists() {
+                    std::fs::create_dir_all(dest_path)?;
+                }
+            } else {
+                // Create parent directories
+                if let Some(parent) = dest_path.parent() {
+                    if !parent.exists() {
+                        std::fs::create_dir_all(parent)?;
+                    }
+                }
+
+                // Create file and write with progress tracking
+                let file = File::create(dest_path)?;
+
+                if entry.size() > 0 {
+                    let mut writer = BufWriter::new(file);
+                    let mut buf = [0u8; 8192];
+                    let file_name = dest_path.file_name()
+                        .map(|n| n.to_string_lossy().to_string());
+
+                    loop {
+                        let n = reader.read(&mut buf)?;
+                        if n == 0 {
+                            break;
+                        }
+                        writer.write_all(&buf[..n])?;
+
+                        // Update progress
+                        tracker.add_bytes(n as u64);
+                        emitter.emit_progress(file_name.clone(), ProgressPhase::Extracting);
+                    }
+
+                    writer.flush()?;
+
+                    // Set file times
+                    let file = writer.get_mut();
+                    let file_times = FileTimes::new()
+                        .set_accessed(entry.access_date().into())
+                        .set_modified(entry.last_modified_date().into());
+
+                    let _ = file.set_times(file_times);
+                }
+
+                // Increment file counter
+                tracker.increment_files();
+            }
+
+            Ok(true)
+        },
+    ).map_err(|e| {
         eprintln!(
             "[extract_encrypted_archive_with_progress] Extraction failed: {}",
             e
@@ -311,9 +401,6 @@ pub fn extract_encrypted_archive_with_progress(
             TimeLockerError::Archive(format!("Extraction failed: {}", e))
         }
     })?;
-
-    // Update progress to complete
-    tracker.set_bytes_written(archive_size);
 
     // Emit completion
     emitter.emit_complete();

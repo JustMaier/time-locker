@@ -9,9 +9,6 @@
       await invoke('unlock_item', { itemId: id });
 
       lockedItems.update(items => items.filter(item => item.id !== id));
-
-      // Show success notification
-      console.log('Item unlocked successfully');
     } catch (error) {
       console.error('Failed to unlock item:', error);
       alert('Failed to unlock item. Please try again.');

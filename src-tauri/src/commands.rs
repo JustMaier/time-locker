@@ -7,7 +7,7 @@ use std::collections::HashMap;
 use std::path::PathBuf;
 use std::sync::{Arc, Mutex};
 use std::fs;
-use tauri::{State, Window};
+use tauri::{State, WebviewWindow};
 
 /// Global state for tracking active operations (for cancellation support)
 pub struct OperationState {
@@ -268,7 +268,7 @@ pub async fn lock_item(
 /// Events are emitted on the "lock-progress" channel with ProgressPayload data.
 #[tauri::command]
 pub async fn lock_item_with_progress(
-    window: Window,
+    window: WebviewWindow,
     state: State<'_, OperationState>,
     file_path: String,
     unlock_time: String,
@@ -327,6 +327,7 @@ pub async fn lock_item_with_progress(
     eprintln!("[lock_item_with_progress] Generated password length: {}", archive_password.len());
 
     // 2. Create encrypted 7z archive with progress tracking
+    let archive_start = std::time::Instant::now();
     let archive_result = archive::create_encrypted_archive_with_progress(
         source_path,
         &archive_password,
@@ -349,15 +350,16 @@ pub async fn lock_item_with_progress(
             ops.remove(&op_id);
             format!("Failed to create encrypted archive: {}", e)
         })?;
-    eprintln!("[lock_item_with_progress] Created temp 7z archive at: {:?}", temp_archive_path);
+    eprintln!("[lock_item_with_progress] Created temp 7z archive at: {:?} (took {:?})", temp_archive_path, archive_start.elapsed());
 
     // 3. Encrypt the password with tlock (cryptographic time-lock)
     let unlock_utc = unlock_datetime.with_timezone(&Utc);
     let duration_str = unlock_datetime.format("%Y-%m-%d").to_string();
 
+    let tlock_start = std::time::Instant::now();
     let encrypted_password = crypto::encrypt_with_tlock(&archive_password, unlock_utc)
         .map_err(|e| format!("Failed to encrypt password with tlock: {}", e))?;
-    eprintln!("[lock_item_with_progress] Encrypted password with tlock");
+    eprintln!("[lock_item_with_progress] Encrypted password with tlock (took {:?})", tlock_start.elapsed());
 
     // 4. Get drand round and original size for metadata
     let drand_round = Some(crypto::datetime_to_round(unlock_utc));
@@ -517,7 +519,7 @@ pub fn cancel_operation(
 /// Command to unlock files with progress tracking
 #[tauri::command]
 pub async fn unlock_item_with_progress(
-    window: Window,
+    window: WebviewWindow,
     state: State<'_, OperationState>,
     key_path: String,
     _password: Option<String>,
@@ -1400,7 +1402,7 @@ pub fn open_in_explorer(path: String) -> Result<(), String> {
 /// Path to the extracted contents
 #[tauri::command]
 pub async fn unlock_tlock_file(
-    window: Window,
+    window: WebviewWindow,
     tlock_path: String,
     output_dir: Option<String>,
 ) -> Result<String, String> {

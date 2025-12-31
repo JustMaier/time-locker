@@ -9,8 +9,22 @@ export default defineConfig({
   clearScreen: false,
 
   server: {
-    port: 5173,
+    port: 1420,
     strictPort: true,
+    host: 'localhost',
+    hmr: {
+      protocol: 'ws',
+      host: 'localhost',
+      port: 1421,
+    },
+    watch: {
+      ignored: ['**/src-tauri/**'],
+    },
+  },
+
+  // Exclude src-tauri from dependency optimization
+  optimizeDeps: {
+    exclude: ['src-tauri'],
   },
 
   envPrefix: ['VITE_', 'TAURI_'],
