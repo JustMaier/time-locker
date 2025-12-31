@@ -27,8 +27,8 @@ clap = { version = "4.4", features = ["derive"] }
 thiserror = "2.0"
 
 # Cryptography and archives
-# Use local patched version with header encryption fix
-sevenz-rust2 = { path = "C:/Dev/Repos/open-source/sevenz-rust2", features = ["compress", "aes256"] }
+# Use forked version with header encryption fix
+sevenz-rust2 = { git = "https://github.com/JustMaier/sevenz-rust2.git", features = ["compress", "aes256"] }
 rand = "0.8"
 aes-gcm = "0.10"
 base64 = "0.21"
