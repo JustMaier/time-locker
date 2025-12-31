@@ -1,6 +1,6 @@
 [package]
 name = "time-locker"
-version = "1.1.0"
+version = "1.2.0"
 description = "Time-lock encryption application for securing files with temporal constraints"
 authors = ["you"]
 license = ""
