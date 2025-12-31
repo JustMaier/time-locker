@@ -53,12 +53,13 @@ function getVersion() {
  */
 function getExecutableInfo(target) {
     const isWindows = target ? target.includes('windows') : process.platform === 'win32';
+    const isLinux = target ? target.includes('linux') : process.platform === 'linux';
     const ext = isWindows ? '.exe' : '';
-    // Tauri uses productName from tauri.conf.json for the executable name
-    const originalName = `Time Locker${ext}`;
+    // Tauri uses productName on Windows/macOS, but Cargo package name on Linux
+    const originalName = isLinux ? 'time-locker' : `Time Locker${ext}`;
     const versionedPrefix = 'TimeLocker';
 
-    return { isWindows, ext, originalName, versionedPrefix };
+    return { isWindows, isLinux, ext, originalName, versionedPrefix };
 }
 
 /**
