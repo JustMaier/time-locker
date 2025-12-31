@@ -75,6 +75,13 @@ jobs:
       - name: Build Tauri app
         run: npm run tauri:build -- --rename --target ${{ matrix.target }}
 
+      - name: List build output
+        if: always()
+        shell: bash
+        run: |
+          echo "=== Release directory contents ==="
+          ls -la src-tauri/target/${{ matrix.target }}/release/ 2>/dev/null | head -30 || echo "Directory not found"
+
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:

@@ -105,9 +105,9 @@ function runTauriBuild(target) {
         const isWindows = process.platform === 'win32';
         const npm = isWindows ? 'npm.cmd' : 'npm';
 
-        const args = ['run', 'tauri', 'build'];
+        const args = ['run', 'tauri', '--', 'build'];
         if (target) {
-            args.push('--', '--target', target);
+            args.push('--target', target);
         }
 
         const build = spawn(npm, args, {
