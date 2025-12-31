@@ -1,0 +1,63 @@
+[package]
+name = "time-locker"
+version = "0.1.0"
+description = "Time-lock encryption application for securing files with temporal constraints"
+authors = ["you"]
+license = ""
+repository = ""
+edition = "2021"
+
+[lib]
+name = "time_locker_lib"
+crate-type = ["lib"]  # Only need lib for desktop
+
+[build-dependencies]
+tauri-build = { version = "1.5", features = [] }
+
+[dependencies]
+# Tauri framework - minimal features needed
+tauri = { version = "1.5", features = [ "shell-open", "dialog-open"] }
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+
+# CLI argument parsing
+clap = { version = "4.4", features = ["derive"] }
+
+# Error handling
+thiserror = "2.0"
+
+# Cryptography and archives
+# Use local patched version with header encryption fix
+sevenz-rust2 = { path = "C:/Dev/Repos/open-source/sevenz-rust2", features = ["compress", "aes256"] }
+rand = "0.8"
+aes-gcm = "0.10"
+base64 = "0.21"
+sha2 = "0.10"
+
+# Timelock encryption (drand-based cryptographic enforcement)
+tlock_age = "0.0.5"
+drand_core = "0.0.16"
+hex = "0.4"
+
+# Date/Time handling
+chrono = { version = "0.4", features = ["serde"] }
+
+# YAML parsing for key files
+serde_yaml = "0.9"
+
+# File system utilities
+walkdir = "2.5"
+
+# UUID generation
+uuid = { version = "1.0", features = ["v4"] }
+
+[features]
+default = ["custom-protocol"]
+custom-protocol = ["tauri/custom-protocol"]
+
+[profile.release]
+panic = "abort"
+codegen-units = 1
+lto = true
+opt-level = "z"      # Maximum size optimization (smaller than "s")
+strip = true         # Remove debug symbols

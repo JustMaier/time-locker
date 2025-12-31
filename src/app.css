@@ -1,0 +1,144 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  body {
+    background: linear-gradient(145deg, #0a0a0f 0%, #12121a 50%, #0d0d12 100%);
+    font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Display', 'Segoe UI', sans-serif;
+    margin: 0;
+    padding: 0;
+    overflow: hidden;
+    height: 100vh;
+  }
+
+  ::-webkit-scrollbar {
+    width: 4px;
+  }
+  ::-webkit-scrollbar-track {
+    background: transparent;
+  }
+  ::-webkit-scrollbar-thumb {
+    background: rgba(255, 255, 255, 0.08);
+    border-radius: 2px;
+  }
+}
+
+@layer components {
+  .glass-panel {
+    background: linear-gradient(135deg, rgba(255,255,255,0.04) 0%, rgba(255,255,255,0.01) 100%);
+    border: 1px solid rgba(255, 255, 255, 0.06);
+    border-radius: 12px;
+    backdrop-filter: blur(20px);
+  }
+
+  .glass-input {
+    @apply w-full px-3 py-2 bg-white/[0.04] border border-white/[0.08] rounded-lg text-white/90 placeholder-white/30;
+    @apply focus:outline-none focus:border-white/20 focus:bg-white/[0.06];
+    font-size: 13px;
+    transition: all 0.15s ease;
+  }
+
+  .glass-input option {
+    background-color: #1a1a2e;
+    color: #e0e0e0;
+    padding: 8px;
+  }
+
+  select.glass-input {
+    cursor: pointer;
+    appearance: none;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 24 24' stroke='%23666'%3E%3Cpath stroke-linecap='round' stroke-linejoin='round' stroke-width='2' d='M19 9l-7 7-7-7'%3E%3C/path%3E%3C/svg%3E");
+    background-repeat: no-repeat;
+    background-position: right 8px center;
+    background-size: 16px;
+    padding-right: 32px;
+  }
+
+  .glass-button {
+    @apply px-4 py-2 bg-white/[0.08] hover:bg-white/[0.12] text-white/80 hover:text-white font-medium rounded-lg;
+    @apply transition-all duration-150 disabled:opacity-30 disabled:cursor-not-allowed;
+    font-size: 13px;
+  }
+
+  .glass-button.primary {
+    background: linear-gradient(135deg, rgba(99, 102, 241, 0.4) 0%, rgba(139, 92, 246, 0.3) 100%);
+    border: 1px solid rgba(139, 92, 246, 0.3);
+  }
+  .glass-button.primary:hover:not(:disabled) {
+    background: linear-gradient(135deg, rgba(99, 102, 241, 0.5) 0%, rgba(139, 92, 246, 0.4) 100%);
+  }
+
+  .drop-zone {
+    @apply border-2 border-dashed border-white/10 rounded-xl p-6 text-center;
+    @apply transition-all duration-200 cursor-pointer;
+    background: linear-gradient(135deg, rgba(255,255,255,0.02) 0%, transparent 100%);
+  }
+  .drop-zone:hover, .drop-zone.dragging {
+    @apply border-indigo-500/40 bg-indigo-500/[0.05];
+  }
+
+  .tab-btn {
+    @apply px-3 py-1.5 rounded-md text-xs font-medium transition-all duration-150;
+    @apply text-white/40 hover:text-white/60;
+  }
+  .tab-btn.active {
+    @apply bg-white/[0.08] text-white/90;
+  }
+
+  .file-row {
+    @apply flex items-center gap-3 px-3 py-2.5 rounded-lg transition-all duration-150;
+    @apply hover:bg-white/[0.03] cursor-pointer;
+  }
+
+  .file-row.ready {
+    @apply bg-emerald-500/[0.05];
+  }
+
+  .file-row.ready:hover {
+    @apply bg-emerald-500/[0.08];
+  }
+
+  .lock-icon {
+    @apply w-8 h-8 rounded-lg flex items-center justify-center;
+    background: linear-gradient(135deg, rgba(99, 102, 241, 0.2) 0%, rgba(139, 92, 246, 0.15) 100%);
+  }
+
+  .lock-icon.locked {
+    @apply text-amber-400/80;
+  }
+
+  .lock-icon.unlocked {
+    @apply text-emerald-400;
+    background: linear-gradient(135deg, rgba(52, 211, 153, 0.2) 0%, rgba(16, 185, 129, 0.15) 100%);
+  }
+
+  .status-badge {
+    @apply px-2 py-0.5 rounded text-[10px] font-medium;
+  }
+
+  .status-badge.ready {
+    @apply bg-emerald-500/20 text-emerald-400;
+  }
+
+  .hint-chip {
+    @apply inline-block px-2 py-0.5 rounded text-[10px] text-white/40 bg-white/[0.04];
+    @apply hover:bg-white/[0.08] hover:text-white/60 cursor-pointer transition-all;
+  }
+
+  .icon-btn {
+    @apply p-1.5 rounded-md text-white/40 hover:text-white/70 hover:bg-white/[0.06] transition-all;
+  }
+
+  .modal-overlay {
+    @apply fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50;
+  }
+
+  .modal-content {
+    @apply glass-panel p-5 w-80 max-w-[90vw];
+  }
+
+  .section-label {
+    @apply text-[10px] text-white/40 uppercase tracking-wider font-medium mb-2;
+  }
+}

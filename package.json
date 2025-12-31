@@ -1,0 +1,31 @@
+{
+  "name": "time-locker",
+  "version": "0.1.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview",
+    "tauri": "tauri",
+    "tauri:dev": "tauri dev",
+    "tauri:build": "node scripts/build.js",
+    "release": "node scripts/release.js patch",
+    "release:patch": "node scripts/release.js patch",
+    "release:minor": "node scripts/release.js minor",
+    "release:major": "node scripts/release.js major"
+  },
+  "dependencies": {
+    "svelte": "^4.2.8"
+  },
+  "devDependencies": {
+    "@sveltejs/vite-plugin-svelte": "^3.0.1",
+    "@tauri-apps/api": "^1.5.3",
+    "@tauri-apps/cli": "^1.5.9",
+    "autoprefixer": "^10.4.16",
+    "png-to-ico": "^3.0.1",
+    "postcss": "^8.4.33",
+    "sharp": "^0.34.5",
+    "tailwindcss": "^3.4.1",
+    "vite": "^5.0.11"
+  }
+}
